@@ -97,7 +97,7 @@ def create_wrapper(rule, fn):
     # named parameters extraction
     for i, term in enumerate(rule.terms):
       if isinstance(term, NamedTerm):
-        kwargs[term.name] = p[i+1]
+        kwargs[term.name] = p[i+1] if not hasattr(fn, 'easyply_delegate') else fn.easyply_delegate(term.name, p, i+1)
     p[0] = fn(**kwargs)
 
   wrapper.__doc__ = rule.format(pure_ply = True)
@@ -157,3 +157,24 @@ def process_all(globals, prefix = 'px_'):
         setattr(globals, name, wrapper)
 
 
+def delegate(delegator):
+  """
+    function decorator for easyply parse function.
+    Take a callable to delegate assigning parse token to a named term.
+    Delegate should have a call signature of func(term_name : str, p : parse_token, index : int)->result
+  """
+  # check delegator
+  if delegator is None:
+    raise ValueError('please provide a delagator function')
+  elif not hasattr(delegator, '__call__'):
+    raise NotImplementedError('delegate must be callable e.g func(term_name : str, p : parse_tokens, index : int)->result')
+
+  # wrapper function consumes easlyply parse function
+  def make_wrapper(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        return fn(*args,**kwargs)
+    # assign delegator as attribute on wrapper
+    setattr(wrapper, 'easyply_delegate', delegator)
+    return wrapper
+  return make_wrapper
