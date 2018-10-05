@@ -27,12 +27,20 @@ from itertools import combinations, chain
 from functools import wraps
 from .nodes import NamedTerm
 from types import MethodType
+try:
+    # avoid shadowing builtin local
+    from threading import local as thread_local
+except ImportError:
+    from dummy_threading import local as thread_local
 
 class NoDocstringError(Exception):
     pass
 
 class SingleRuleExpectedError(Exception):
   pass
+
+class NotInEasyPlyRuleError(Exception):
+    pass
 
 def _coerce_to_ruleset(ruleset):
   def coerce_to_rule(rule):
@@ -76,6 +84,53 @@ def expand_optionals(ruleset, format = True, pure_ply = True):
   ruleset = _coerce_to_ruleset(ruleset)
   return list(chain.from_iterable(process_rule(rule) for rule in ruleset))
 
+# _LOCATION_MAP
+# thread local variable to store current term name to index map 
+# and current production
+# attribs are: terms = Dict[str, int]
+#              production = ply production object
+_LOCATION_MAP = threading_local()
+
+def location(term_name=None, extra_fn=None):
+    """
+      Takes the name of a term in the current rule and returns a dictionary with
+      location data. This dictionary has the following keys: lexpos, lexspan,
+      lexspan, and linespan. If provided, extra_fn is a callable that takes a
+      yacc symbol object and returns a dictionary. This dictionary will be
+      applied to the location data dictionary via the updated methods.
+      
+      Example:
+         l = easyply.location('foo', lambda x: {'filename':x.filename})
+         l.keys() == ['lineno', 'lexpos', 'linespan', 'lexspan', 'filename']
+
+      
+      Note when None (the default arg) is provided, this function will return
+      the location data associated with p[0].
+    """
+    if not hasattr(_LOCATION_MAP,'production') or not hasattr(_LOCATION_MAP,'terms'):
+        raise NotInEasyPlyRuleError('location is only a valid call'
+                                    ' in a easyply production ') 
+    if term_name not in _LOCATION_MAP.terms:
+        raise KeyError('Provided %s is not a named term' % term_name)
+    
+    if term_name is None:
+        i = 0
+    else:
+        i = _LOCATION_MAP.terms[term_name]
+    p = _LOCATION_MAP.production
+    rv = {
+        'lineno' : p.lineno(i),
+        'lexpos' : p.lexpos(i),
+        'linespan' : p.linespan(i),
+        'lexspan' : p.lexspan(i),
+    }
+
+    if extra_fn is not None:
+        up = extra_fn(p[i])
+        if not instance(up, Mapping):
+           raise TypeError('extra_fn must return a Mapping (dict-like)')
+        rv.update(up)
+    return rv
 
 def create_wrapper(rule, fn):
   """
@@ -95,10 +150,18 @@ def create_wrapper(rule, fn):
   def wrapper(p):
     kwargs = {}
     # named parameters extraction
+    term_map = {}
     for i, term in enumerate(rule.terms):
       if isinstance(term, NamedTerm):
         kwargs[term.name] = p[i+1]
+        term_map[term.name] = i+1
+
+    _LOCATION_MAP.production = p
+    _LOCATION_MAP.terms = term_map
     p[0] = fn(**kwargs)
+
+    del _LOCATION_MAP.production
+    del _LOCATION_MAP.terms
 
   wrapper.__doc__ = rule.format(pure_ply = True)
 
