@@ -27,6 +27,8 @@ from itertools import combinations, chain
 from functools import wraps
 from .nodes import NamedTerm
 from types import MethodType
+from collections import Mapping
+
 try:
     # avoid shadowing builtin local
     from threading import local as thread_local
