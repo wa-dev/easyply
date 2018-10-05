@@ -17,8 +17,8 @@ class Parser(Lexer):
     '''production: {A}'''
     global _parser
     assert self is _parser
-    loc = easyply.location('A')
-    return loc
+    loc = easyply.location('a')
+    return a, loc
 
   def parse(self, text):
     easyply.process_all(self)
@@ -29,5 +29,10 @@ def test_delegate():
   global _parser
   _parser = Parser()
   result = _parser.parse('Hello')
-  assert result == ('Hello', {'line': 1, 'pos': 0}, 'a')
+  assert result == ('Hello', {'lineno': 1, 'lexpos': 0, 'linespan':(1,1), 'lexspan':(0,0)})
 
+
+if __name__ == '__main__':
+  test_delegate()
+#  import unittest
+#  unittest.main()

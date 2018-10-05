@@ -89,7 +89,7 @@ def expand_optionals(ruleset, format = True, pure_ply = True):
 # and current production
 # attribs are: terms = Dict[str, int]
 #              production = ply production object
-_LOCATION_MAP = threading_local()
+_LOCATION_MAP = thread_local()
 
 def location(term_name=None, extra_fn=None):
     """
@@ -100,8 +100,10 @@ def location(term_name=None, extra_fn=None):
       applied to the location data dictionary via the updated methods.
       
       Example:
-         l = easyply.location('foo', lambda x: {'filename':x.filename})
-         l.keys() == ['lineno', 'lexpos', 'linespan', 'lexspan', 'filename']
+         def px_foo(foo):
+           "production : {ID:foo}"
+           l = easyply.location('foo', lambda x: {'filename':x.filename})
+           assert l.keys() == ['lineno', 'lexpos', 'linespan', 'lexspan', 'filename']
 
       
       Note when None (the default arg) is provided, this function will return
